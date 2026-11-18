@@ -7,6 +7,8 @@ A live HR turnover dashboard for the DATA 6520 Alpha Manufacturing Solutions pro
 - **Design:** see [`DESIGN.md`](DESIGN.md) for the layout, colours, refresh behaviour and what each page answers
 - **Older static version:** [`docs/`](docs/), served by GitHub Pages as a fallback
 
+> **Changing the dashboard with an AI assistant** (ChatGPT, Claude, Copilot…)? Open [`AI_GUIDE.md`](AI_GUIDE.md), copy everything below its line into the AI, then add your request. It covers the rules, files, data and step-by-step recipes.
+
 ## Pages
 
 | File | Page | Question it answers |

@@ -2,7 +2,7 @@
 
 This repo is a **Streamlit multipage app**. `streamlit_app.py` is the entry point, and each page is one file in `app_pages/`. It's hosted on Streamlit Community Cloud, which redeploys on every push to `main`. The older static site lives in `docs/` and is served by GitHub Pages. Its own rules are in `docs/README.md`.
 
-Read `README.md` and `DESIGN.md` before changing anything.
+Read `README.md`, `DESIGN.md` and `AI_GUIDE.md` (rules, data, recipes) before changing anything.
 
 ## Hard rules
 
