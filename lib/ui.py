@@ -43,6 +43,10 @@ def inject_css() -> None:
 
 
 def page_header(title: str, question: str) -> None:
+    # Second lock: a page never draws (or reads data) unless this session has signed in,
+    # even if Streamlit were ever to run a page file without going through streamlit_app.py.
+    if not st.session_state.get("signed_in"):
+        st.stop()
     st.markdown(
         f'<div class="page-head"><p class="eyebrow">Alpha Manufacturing Solutions · HR dashboard</p>'
         f'<h1>{escape(title)}</h1><p class="question">{escape(question)}</p></div>',

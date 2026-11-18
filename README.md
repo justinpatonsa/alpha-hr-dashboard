@@ -11,13 +11,13 @@ A live HR turnover dashboard for the DATA 6520 Alpha Manufacturing Solutions pro
 
 | File | Page | Question it answers |
 |---|---|---|
-| `pages/overview.py` | Overview | How many left in 2025, at what rate, and when? |
-| `pages/where.py` | Where | Which plants, departments, roles and shifts run well above the rate? |
-| `pages/factors.py` | Factors | How do leavers differ from stayers? |
-| `pages/voice.py` | Employee voice | What do the survey and exit interviews say, and who do they cover? |
-| `pages/cost.py` | Cost & scenarios | What do departures cost, and what would an improvement save? |
+| `app_pages/overview.py` | Overview | How many left in 2025, at what rate, and when? |
+| `app_pages/where.py` | Where | Which plants, departments, roles and shifts run well above the rate? |
+| `app_pages/factors.py` | Factors | How do leavers differ from stayers? |
+| `app_pages/voice.py` | Employee voice | What do the survey and exit interviews say, and who do they cover? |
+| `app_pages/cost.py` | Cost & scenarios | What do departures cost, and what would an improvement save? |
 
-To add a page, create `pages/<name>.py` following the pattern below, then add one `st.Page(...)` line to `streamlit_app.py`.
+To add a page, create `app_pages/<name>.py` following the pattern below, then add one `st.Page(...)` line to `streamlit_app.py`.
 
 ## How a page works
 
@@ -82,7 +82,7 @@ To change a password later, edit the app's **Settings → Secrets**. The app res
 
 ```
 streamlit_app.py          entry point: sign-in, sidebar filters, navigation
-pages/*.py                one file per page
+app_app_pages/*.py                one file per page
 lib/settings.py           reads secrets / environment variables
 lib/supabase_client.py    read-only Supabase access (sign-in, paging, counts)
 lib/data.py               the live snapshot: fetch, join, filter

@@ -1,7 +1,7 @@
 """Alpha HR dashboard: entry point.
 
 Run locally:   streamlit run streamlit_app.py
-Each page lives in its own file under pages/ and can be edited on its own.
+Each page lives in its own file under app_pages/ and can be edited on its own.
 """
 import streamlit as st
 
@@ -21,11 +21,11 @@ except SupabaseError as err:
     st.stop()
 
 navigation = st.navigation([
-    st.Page("pages/overview.py", title="Overview", icon=":material/dashboard:", default=True),
-    st.Page("pages/where.py", title="Where", icon=":material/location_on:"),
-    st.Page("pages/factors.py", title="Factors", icon=":material/balance:"),
-    st.Page("pages/voice.py", title="Employee voice", icon=":material/forum:"),
-    st.Page("pages/cost.py", title="Cost & scenarios", icon=":material/payments:"),
+    st.Page("app_pages/overview.py", title="Overview", icon=":material/dashboard:", default=True),
+    st.Page("app_pages/where.py", title="Where", icon=":material/location_on:"),
+    st.Page("app_pages/factors.py", title="Factors", icon=":material/balance:"),
+    st.Page("app_pages/voice.py", title="Employee voice", icon=":material/forum:"),
+    st.Page("app_pages/cost.py", title="Cost & scenarios", icon=":material/payments:"),
 ])
 
 with st.sidebar:

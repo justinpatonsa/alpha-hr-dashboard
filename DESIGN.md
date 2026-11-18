@@ -55,7 +55,7 @@ Filters (plant, department, shift, pay basis) sit in the sidebar and apply to ev
 
 ```
 streamlit_app.py      entry point: sign-in gate, sidebar filters, navigation
-pages/                one file per page (edit a page without touching the others)
+app_pages/                one file per page (edit a page without touching the others)
 lib/settings.py       reads secrets / environment
 lib/supabase_client.py  read-only Supabase access (sign-in, paging, counts)
 lib/data.py           live snapshot: fetch, join, filter
