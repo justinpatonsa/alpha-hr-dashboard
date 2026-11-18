@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://qfqtowijmmceismaqzxw.supabase.co; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Alpha HR Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='8' width='3' height='6' rx='1' fill='%237aa83a'/%3E%3Crect x='6.5' y='4' width='3' height='10' rx='1' fill='%232a78d6'/%3E%3Crect x='11' y='2' width='3' height='12' rx='1' fill='%23184f95'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script type="module" src="assets/app.js"></script>
+</head>
+<body>
+  <!-- Sign-in: shown until the viewer signs in with their own Supabase login. -->
+  <main id="signin-view" class="signin" hidden>
+    <form id="signin-form" class="signin-card" novalidate>
+      <p class="eyebrow">DATA 6520 · Alpha Manufacturing Solutions</p>
+      <h1>HR <em>dashboard</em></h1>
+      <p class="muted">Sign in with the Supabase login your instructor emailed you.</p>
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="username" required>
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+      <p id="signin-error" class="error" role="alert" hidden></p>
+      <button id="signin-button" type="submit" class="primary">Sign in</button>
+      <p class="fine">Your login goes straight to Supabase. This site has no server of its own, and nothing you type is stored in it.</p>
+    </form>
+  </main>
+
+  <!-- Dashboard: every number is computed in the browser from a live read of the four tables. -->
+  <div id="dashboard-view" hidden>
+    <header class="topbar">
+      <div>
+        <h1 class="title">Alpha Manufacturing Solutions <em>HR dashboard</em></h1>
+        <p class="subtitle">Live from the course Supabase database · read-only · 2024-12-31 cohort, departures during 2025</p>
+      </div>
+      <div class="account">
+        <span id="signed-in-as" class="muted"></span>
+        <button id="change-password" type="button" class="ghost">Change password</button>
+        <button id="sign-out" type="button" class="ghost">Sign out</button>
+      </div>
+    </header>
+
+    <div class="filters" role="group" aria-label="Filters">
+      <label>Plant
+        <select id="filter-plant"><option value="">All plants</option></select>
+      </label>
+      <label>Department
+        <select id="filter-department"><option value="">All departments</option></select>
+      </label>
+      <button id="refresh" type="button" class="ghost">Refresh data</button>
+      <span id="load-status" class="muted" aria-live="polite"></span>
+    </div>
+
+    <p id="load-error" class="error banner" role="alert" hidden></p>
+
+    <div id="content" class="content">
+      <section class="tiles" aria-label="Headline figures">
+        <article class="tile hero">
+          <h2>Turnover rate, 2025</h2>
+          <p class="value" id="kpi-rate">–</p>
+          <p class="note" id="kpi-rate-note"></p>
+        </article>
+        <article class="tile"><h2>Employees at baseline</h2><p class="value" id="kpi-headcount">–</p><p class="note">on 2024-12-31</p></article>
+        <article class="tile"><h2>Left during 2025</h2><p class="value" id="kpi-leavers">–</p><p class="note" id="kpi-leavers-note"></p></article>
+        <article class="tile"><h2>Estimated replacement cost</h2><p class="value" id="kpi-cost">–</p><p class="note" id="kpi-cost-note"></p></article>
+        <article class="tile"><h2>Survey response</h2><p class="value" id="kpi-survey">–</p><p class="note" id="kpi-survey-note"></p></article>
+        <article class="tile"><h2>Exit interviews</h2><p class="value" id="kpi-exit">–</p><p class="note" id="kpi-exit-note"></p></article>
+      </section>
+
+      <section class="grid">
+        <article class="card" id="card-turnover">
+          <header class="card-head">
+            <div>
+              <h2>Turnover rate by <span id="dimension-name">department</span></h2>
+              <p class="muted">Share of baseline employees who left during 2025</p>
+            </div>
+            <label class="inline">View by
+              <select id="dimension"></select>
+            </label>
+          </header>
+          <div class="chart"></div>
+        </article>
+
+        <article class="card" id="card-reasons">
+          <header class="card-head">
+            <div>
+              <h2>Why people left</h2>
+              <p class="muted">Main reason given in the exit interview</p>
+            </div>
+          </header>
+          <div class="chart"></div>
+        </article>
+
+        <article class="card" id="card-survey">
+          <header class="card-head">
+            <div>
+              <h2>Survey scores: leavers vs stayers</h2>
+              <p class="muted">Average score (1–5) from the December 2024 survey</p>
+            </div>
+          </header>
+          <div class="chart"></div>
+        </article>
+
+        <article class="card" id="card-cost">
+          <header class="card-head">
+            <div>
+              <h2>Estimated replacement cost by department</h2>
+              <p class="muted">Recruiting + onboarding + training estimates for 2025 leavers</p>
+            </div>
+          </header>
+          <div class="chart"></div>
+        </article>
+      </section>
+
+      <section class="card status" aria-label="Data connection">
+        <h2>Data connection</h2>
+        <p class="muted" id="status-line"></p>
+        <div class="table-wrap">
+          <table id="status-table">
+            <thead><tr><th scope="col">Table</th><th scope="col" class="num">Rows read</th><th scope="col" class="num">Database count</th><th scope="col">Check</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="definitions">
+        <h2>How these numbers are worked out</h2>
+        <ul>
+          <li><strong>Turnover rate</strong> = employees who left during 2025 ÷ employees in the 2024-12-31 baseline.</li>
+          <li><strong>Estimated replacement cost</strong> adds the three cost estimates in <code>compensation_training</code> for each 2025 leaver. They are the client's estimates, not measured costs.</li>
+          <li><strong>Survey scores</strong> are means over the employees who answered the single December 2024 survey; 5 is assumed to be the most favourable.</li>
+          <li><strong>Exit reasons</strong> are what leavers reported, not measured causes, and only some leavers were interviewed.</li>
+          <li>Every figure is recomputed in your browser from a fresh read of the live database each time you sign in or press Refresh. Nothing is cached or saved.</li>
+        </ul>
+      </footer>
+    </div>
+  </div>
+
+  <dialog id="password-dialog" aria-labelledby="password-title">
+    <form id="password-form" novalidate>
+      <h2 id="password-title">Change your Supabase password</h2>
+      <p class="muted">This changes the login your instructor issued, everywhere you use it.</p>
+      <label for="new-password">New password</label>
+      <input id="new-password" type="password" autocomplete="new-password" minlength="8" required>
+      <label for="repeat-password">Repeat new password</label>
+      <input id="repeat-password" type="password" autocomplete="new-password" minlength="8" required>
+      <p id="password-message" role="status" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" id="password-cancel" class="ghost">Close</button>
+        <button type="submit" id="password-save" class="primary">Change password</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+</body>
+</html>
