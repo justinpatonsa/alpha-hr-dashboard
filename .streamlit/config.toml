@@ -1,0 +1,17 @@
+# Streamlit settings shared by everyone (no secrets here).
+[theme]
+base = "light"
+primaryColor = "#4d7c0f"              # the team's green, dark enough for text and controls
+backgroundColor = "#f7f8f5"
+secondaryBackgroundColor = "#eceee7"
+textColor = "#0b0b0b"
+font = "sans serif"
+
+[client]
+showErrorDetails = "none"             # don't show stack traces to viewers
+
+[browser]
+gatherUsageStats = false
+
+[server]
+runOnSave = false

@@ -1,5 +1,13 @@
 # Never commit credentials
 .env
 .env.*
+.streamlit/secrets.toml
 *.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
 .DS_Store
