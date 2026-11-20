@@ -20,6 +20,10 @@ CSS = """
 .live .dot { width: .55rem; height: .55rem; border-radius: 50%; background: #0ca30c; flex: none; }
 .live.paused .dot { background: #898781; }
 .live.warn .dot { background: #fab219; }
+.fallback-banner { border: 1px solid #fab219; border-left: 5px solid #fab219; background: rgba(250,178,25,.12);
+                   border-radius: 10px; padding: .6rem .9rem; margin: .4rem 0 .3rem; font-size: .92rem; line-height: 1.4; }
+.fallback-banner::before { content: "⚠ "; }
+.fallback-banner .why { font-size: .8rem; opacity: .75; margin-top: .2rem; overflow-wrap: anywhere; }
 .kpi { border: 1px solid rgba(128,128,120,.28); border-radius: 12px; padding: 14px 16px; height: 132px; overflow: hidden;
        background: rgba(128,128,120,.05); }
 .kpi { container-type: inline-size; }
@@ -83,6 +87,20 @@ def table(title: str, df: pd.DataFrame, key: str) -> None:
 def _status(snap: data.Snapshot, live: bool) -> None:
     t = snap.loaded_at.strftime("%H:%M:%S")
     rows = sum(snap.rows_read.values())
+    if snap.source == "fallback":
+        # One element either way (banner + status line), so the page keeps the same structure.
+        reason = (snap.fallback_reason or "unknown error")[:220]
+        st.markdown(
+            f'<div class="fallback-banner"><strong>Not live data.</strong> The course database (Supabase) '
+            f'can\'t be read right now, so every figure on this page comes from the saved '
+            f'{escape(data.FALLBACK_LABEL)} copy of the four tables. The app checks the live database '
+            f'every {data.FALLBACK_RETRY_SECONDS} s and switches back automatically when it answers.'
+            f'<div class="why">Reason: {escape(reason)}</div></div>'
+            f'<div class="live warn"><span class="dot"></span><span>Saved copy · {escape(data.FALLBACK_LABEL)} · '
+            f'{rows:,} rows from 4 tables · last live check at {t}</span></div>',
+            unsafe_allow_html=True,
+        )
+        return
     if snap.error:
         cls = "live warn"
         text = (f"Couldn't refresh at {snap.failed_at:%H:%M:%S}. Showing the data read at {t}; "

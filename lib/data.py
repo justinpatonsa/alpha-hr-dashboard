@@ -7,6 +7,7 @@ Nothing is written to disk or shared between viewers.
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 import time
 
 import pandas as pd
@@ -15,6 +16,15 @@ import streamlit as st
 from lib.supabase_client import TABLES, Client, SupabaseError
 
 REFRESH_SECONDS = 20
+
+# OUTAGE FALLBACK ONLY. A saved copy of the four tables, used when Supabase can't be read
+# (e.g. the instructor's project is restricted for going over its quota). Every page then
+# shows a banner saying the data is not live, and the app keeps retrying the live database,
+# switching back by itself when it answers. Never use these files for anything else, and
+# don't add other copies of the data: the course requires live data.
+FALLBACK_DIR = Path(__file__).resolve().parent.parent / "data" / "snapshot_2026-10-28"
+FALLBACK_LABEL = "28 Oct 2026"
+FALLBACK_RETRY_SECONDS = 60   # while on the saved copy, try the live database this often
 COST_COLUMNS = {
     "estimated_recruiting_cost_usd": "Recruiting",
     "estimated_onboarding_cost_usd": "Onboarding",
@@ -42,6 +52,8 @@ class Snapshot:
     notes: list = field(default_factory=list)
     error: str | None = None          # set when the latest refresh failed and older data is shown
     failed_at: datetime | None = None
+    source: str = "live"              # "live", or "fallback" for the saved outage copy
+    fallback_reason: str | None = None
 
 
 @st.cache_resource(show_spinner=False)
@@ -111,23 +123,52 @@ def fetch() -> Snapshot:
     )
 
 
+@st.cache_resource(show_spinner=False)
+def _fallback_frames() -> dict:
+    """The saved outage copy, read once per server process (it never changes)."""
+    return {t: pd.read_csv(FALLBACK_DIR / f"{t}.csv.gz", usecols=cols, dtype={"employee_id": str})
+            for t, (_, cols) in TABLES.items()}
+
+
+def fetch_fallback(reason: str) -> Snapshot:
+    started = time.perf_counter()
+    frames = {t: df.copy() for t, df in _fallback_frames().items()}
+    notes: list = []
+    return Snapshot(
+        employees=_join(frames, notes),
+        rows_read={t: len(df) for t, df in frames.items()},
+        db_counts={t: None for t in frames},
+        requests=0,
+        seconds=time.perf_counter() - started,
+        loaded_at=datetime.now(),
+        notes=notes,
+        source="fallback",
+        fallback_reason=reason,
+    )
+
+
 def get_snapshot(max_age: float | None = REFRESH_SECONDS - 2) -> Snapshot:
     """The session's latest read, refreshed when it is older than max_age seconds.
     max_age=None means "use the latest read if there is one" (page switches, filter changes),
     so the page redraws at once and the 20-second timer brings the next read.
 
-    If a refresh fails, the previous read stays on screen with the error noted, so the page
-    never empties out because of one bad request."""
+    If a refresh fails, the previous live read stays on screen with the error noted, so the page
+    never empties out because of one bad request. If there is no live read to fall back on (the
+    database was already down when this session started), the saved outage copy is shown with a
+    banner, and the live database is retried every FALLBACK_RETRY_SECONDS."""
     snap = st.session_state.get("snapshot")
-    if snap is not None and (max_age is None or (datetime.now() - snap.loaded_at).total_seconds() < max_age):
-        return snap
+    if snap is not None:
+        age = (datetime.now() - snap.loaded_at).total_seconds()
+        wait = FALLBACK_RETRY_SECONDS if snap.source == "fallback" else max_age
+        if max_age is None or age < wait:
+            return snap
     try:
         snap = fetch()
     except SupabaseError as err:
-        if snap is None:
-            raise
-        snap.error, snap.failed_at = str(err), datetime.now()
-        return snap
+        if snap is not None and snap.source == "live":
+            snap.error, snap.failed_at = str(err), datetime.now()
+            return snap
+        snap = fetch_fallback(str(err))
     st.session_state["snapshot"] = snap
     return snap
 

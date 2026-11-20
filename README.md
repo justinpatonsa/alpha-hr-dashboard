@@ -51,7 +51,7 @@ ui.live(render, key="page_name")
 
 1. **No passwords in the repo, ever.** It's public. Secrets go only in Streamlit Cloud's Secrets box or in your own gitignored `.streamlit/secrets.toml`.
 2. **Read-only.** The database is shared by the whole class. Only `GET` requests, through `lib/supabase_client.py`.
-3. **Live data only.** No CSV, Excel or pickle copies of the data in the repo, and no caching rows to disk. Every figure comes from the live read.
+3. **Live data only.** No CSV, Excel or pickle copies of the data in the repo, and no caching rows to disk. Every figure comes from the live read. The one exception is the outage fallback in `data/snapshot_2026-10-28/`. `lib/data.py` uses it only while Supabase can't be read, shows a "Not live data" banner on every page, and switches back to live data by itself when the database answers. Don't use those files for anything else.
 4. **Escape database text** before putting it in HTML (`html.escape`). The helpers in `lib/ui.py` already do this.
 
 ## Run it on your computer

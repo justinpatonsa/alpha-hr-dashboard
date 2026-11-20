@@ -88,7 +88,11 @@ class Client:
             raise SupabaseError(f"Can't reach Supabase: {err}") from err
         if r.status_code == 200 and "access_token" in r.json():
             return r.json()
-        return None
+        if r.status_code in (400, 401, 403):
+            return None   # wrong or expired login: the caller retries, then reports it
+        # Anything else means Supabase itself is unavailable (e.g. 402 when the project is
+        # restricted for going over its quota, or a 5xx outage). Say so instead of blaming the login.
+        raise SupabaseError(f"Supabase is unavailable (HTTP {r.status_code}): {_message(r)}")
 
     def _sign_in(self):
         payload = None

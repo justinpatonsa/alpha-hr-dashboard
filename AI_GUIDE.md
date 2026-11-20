@@ -20,7 +20,7 @@ You are helping a student team (DATA 6520, Fairfield University) change a **live
 
 1. **No secrets in the code or the repo.** The repo is public. Passwords, keys and logins come only from Streamlit's Secrets, read through `lib/settings.get("NAME")`. Never write a real value into any file, comment, commit message or example. Never create or commit `.env` or `.streamlit/secrets.toml`. If a change needs a new secret, tell the user to add it under the app's **Settings → Secrets** on share.streamlit.io.
 2. **Read-only database.** The database is shared by the whole class. Read data only through the existing functions (`lib/supabase_client.py`, `lib/data.py`). Never write code that sends POST, PATCH, PUT or DELETE to a table, and never connect to the database another way.
-3. **Live data only.** Don't load data from CSV, Excel, JSON, pickle or parquet files. Don't save data to disk, and don't use `st.cache_data` on table rows. Every number must come from the live read (the `df` passed to each page).
+3. **Live data only.** Don't load data from CSV, Excel, JSON, pickle or parquet files. Don't save data to disk, and don't use `st.cache_data` on table rows. Every number must come from the live read (the `df` passed to each page). The only exception is built in: when Supabase is down, `lib/data.py` substitutes the saved copy in `data/snapshot_2026-10-28/` and shows a "Not live data" banner. Pages need no changes for it, and must never read those files themselves.
 4. **No layout jumps on refresh.** Inside a page's `render` function:
    - Give every chart a fixed height via `charts.style(fig, height)`.
    - Give every chart and every widget a **unique `key`**.
