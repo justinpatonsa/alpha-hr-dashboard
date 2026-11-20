@@ -16,7 +16,7 @@ HR leadership at Alpha Manufacturing want to know who left in 2025, where turnov
 
 ## Layout (the same on every page)
 
-1. **Header:** the page title, its question, and a live-status line ("Live · updated 10:42:05 · refreshes every 20 s").
+1. **Header:** the page title, its question, and a live-status line ("Live · checked 10:42:05 · full read at 10:40:01 · re-reads every 5 min, or at once when rows change").
 2. **KPI row:** four tiles of fixed height. Exactly one hero number per page.
 3. **Primary chart:** full width.
 4. **Two supporting charts:** side by side, stacking on narrow screens.
@@ -38,12 +38,12 @@ Filters (plant, department, shift, pay basis) sit in the sidebar and apply to ev
 ## Live data and refresh
 
 - The app reads the four Supabase tables live: read-only GET requests, paged 1,000 rows at a time, then joined in pandas.
-- **Every 20 seconds** the page body re-reads the database (`st.fragment(run_every=20)`). Changing a filter re-slices the latest read without waiting.
+- **Every 20 seconds** the page body updates (`st.fragment(run_every=20)`) from one read shared by all viewers. Each tick asks the database only for row counts. A full re-read happens every 5 minutes, at once if a count changes, or when someone clicks **Refresh now**. Changing a filter re-slices the latest read without waiting.
 - **No layout jumps on refresh:**
   - Every element keeps its position and size between refreshes: fixed-height tiles and charts, a constant element order, and messages written into fixed slots instead of appearing and disappearing.
   - Streamlit's usual fade-out during a rerun is turned off. The status line is what tells you an update happened.
   - If one read fails, the last good data stays on screen and the status line says so.
-- A sidebar toggle pauses live refresh, which saves requests to the shared class database. Each open tab makes about 53 small requests every 20 seconds.
+- A sidebar toggle pauses live refresh, which saves requests to the shared class database. The old design re-read every table for every tab every 20 seconds, which used up the project's transfer allowance. Now the whole app makes 4 tiny count requests every 20 s, plus one full read every 5 min.
 
 ## Access
 

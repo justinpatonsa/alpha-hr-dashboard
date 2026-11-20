@@ -1,13 +1,22 @@
-"""The live snapshot: a fresh read of the four tables, joined into one row per baseline employee.
+"""The live snapshot: a read of the four tables, joined into one row per baseline employee.
 
-Each browser session keeps only its latest read in memory, and a new read replaces it every
-20 seconds. Changing a filter re-slices that latest read rather than waiting for the next one.
-Nothing is written to disk or shared between viewers.
+The class database is shared and has a small data-transfer (egress) allowance. Re-reading all
+~45,000 rows every 20 seconds for every open tab used it up, and Supabase blocked the project.
+So reads are now economical, without making the data less live:
+
+- One read is shared by everyone using the app (kept in server memory only, never on disk).
+- Every CHECK_SECONDS the app asks the database only for each table's row count: four tiny
+  requests. If any count changed, it re-reads everything at once.
+- Otherwise it re-reads everything every FULL_REFRESH_SECONDS, so edited values show up too.
+- "Refresh now" in the sidebar forces a full read (at most once per MANUAL_REFRESH_MIN_SECONDS).
+
+Changing a filter re-slices the latest read rather than waiting for the next one.
 """
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+import threading
 import time
 
 import pandas as pd
@@ -15,7 +24,10 @@ import streamlit as st
 
 from lib.supabase_client import TABLES, Client, SupabaseError
 
-REFRESH_SECONDS = 20
+CHECK_SECONDS = 20               # cheap row-count check (a few hundred bytes)
+FULL_REFRESH_SECONDS = 300       # full re-read at least this often (about 10 MB each)
+MANUAL_REFRESH_MIN_SECONDS = 30  # "Refresh now" can't force full reads more often than this
+REFRESH_SECONDS = CHECK_SECONDS  # how often each page's live fragment ticks
 
 # OUTAGE FALLBACK ONLY. A saved copy of the four tables, used when Supabase can't be read
 # (e.g. the instructor's project is restricted for going over its quota). Every page then
@@ -54,12 +66,24 @@ class Snapshot:
     failed_at: datetime | None = None
     source: str = "live"              # "live", or "fallback" for the saved outage copy
     fallback_reason: str | None = None
+    checked_at: datetime | None = None  # last time the database was asked anything (count check or read)
 
 
 @st.cache_resource(show_spinner=False)
+def _client_holder() -> dict:
+    return {}
+
+
 def client() -> Client:
-    """One signed-in Supabase session for the app (a credential, not data)."""
-    return Client()
+    """One signed-in Supabase session for the app (a credential, not data).
+
+    Made fresh whenever the code has been reloaded (e.g. after a push to GitHub). Otherwise an
+    instance of the old class would survive in the cache and raise errors that the new code
+    doesn't recognise, which crashed the app once."""
+    holder = _client_holder()
+    if not isinstance(holder.get("client"), Client):
+        holder["client"] = Client()
+    return holder["client"]
 
 
 def _numeric(df: pd.DataFrame, columns) -> None:
@@ -144,33 +168,84 @@ def fetch_fallback(reason: str) -> Snapshot:
         notes=notes,
         source="fallback",
         fallback_reason=reason,
+        checked_at=datetime.now(),
     )
 
 
-def get_snapshot(max_age: float | None = REFRESH_SECONDS - 2) -> Snapshot:
-    """The session's latest read, refreshed when it is older than max_age seconds.
-    max_age=None means "use the latest read if there is one" (page switches, filter changes),
-    so the page redraws at once and the 20-second timer brings the next read.
+class _Shared:
+    """The one read shared by every viewer, plus the lock that stops two viewers reading at once."""
 
-    If a refresh fails, the previous live read stays on screen with the error noted, so the page
-    never empties out because of one bad request. If there is no live read to fall back on (the
-    database was already down when this session started), the saved outage copy is shown with a
-    banner, and the live database is retried every FALLBACK_RETRY_SECONDS."""
-    snap = st.session_state.get("snapshot")
-    if snap is not None:
-        age = (datetime.now() - snap.loaded_at).total_seconds()
-        wait = FALLBACK_RETRY_SECONDS if snap.source == "fallback" else max_age
-        if max_age is None or age < wait:
-            return snap
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.snap: Snapshot | None = None
+
+
+@st.cache_resource(show_spinner=False)
+def _shared() -> _Shared:
+    return _Shared()
+
+
+def _counts() -> dict:
+    """Each table's row count, straight from the database (no rows are sent)."""
+    c = client()
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {t: pool.submit(c.count, t) for t in TABLES}
+        return {t: f.result() for t, f in futures.items()}
+
+
+def _read(prev: Snapshot | None) -> Snapshot:
+    """A full read. If it fails, keep showing the previous live read with the error noted;
+    with no live read to show, use the saved outage copy."""
     try:
         snap = fetch()
-    except SupabaseError as err:
-        if snap is not None and snap.source == "live":
-            snap.error, snap.failed_at = str(err), datetime.now()
-            return snap
-        snap = fetch_fallback(str(err))
-    st.session_state["snapshot"] = snap
+    except Exception as err:   # any failure (outage, bad secrets, network) must not crash the page
+        now = datetime.now()
+        if prev is not None and prev.source == "live":
+            prev.error, prev.failed_at, prev.checked_at = str(err), now, now
+            return prev
+        return fetch_fallback(str(err))
+    snap.checked_at = snap.loaded_at
     return snap
+
+
+def _advance(snap: Snapshot | None, force: bool) -> Snapshot:
+    now = datetime.now()
+    if snap is None:
+        return _read(None)
+    if snap.source == "fallback":
+        retry_due = (now - snap.loaded_at).total_seconds() >= FALLBACK_RETRY_SECONDS
+        return _read(snap) if (force or retry_due) else snap
+    age = (now - snap.loaded_at).total_seconds()
+    if (force and age >= MANUAL_REFRESH_MIN_SECONDS) or age >= FULL_REFRESH_SECONDS:
+        return _read(snap)
+    try:
+        counts = _counts()
+    except Exception as err:
+        snap.error, snap.failed_at, snap.checked_at = str(err), now, now
+        return snap
+    snap.checked_at, snap.error = now, None
+    if counts != snap.db_counts:   # rows were added or removed: re-read now
+        return _read(snap)
+    return snap
+
+
+def get_snapshot(max_age: float | None = REFRESH_SECONDS - 2, force: bool = False) -> Snapshot:
+    """The latest shared read, brought up to date when it was last checked over max_age seconds ago.
+    max_age=None means "use the latest read if there is one" (page switches, filter changes),
+    so the page redraws at once and the next timed tick does the checking.
+    force=True is "Refresh now": a full read, unless one happened in the last
+    MANUAL_REFRESH_MIN_SECONDS."""
+    shared = _shared()
+    with shared.lock:
+        snap = shared.snap
+        if not isinstance(snap, Snapshot):   # first read, or the code was reloaded since
+            snap = None
+        if snap is not None and not force:
+            checked = snap.checked_at or snap.loaded_at
+            if max_age is None or (datetime.now() - checked).total_seconds() < max_age:
+                return snap
+        shared.snap = _advance(snap, force)
+        return shared.snap
 
 
 def current_filters() -> dict:

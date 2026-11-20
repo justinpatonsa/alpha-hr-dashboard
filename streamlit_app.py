@@ -7,7 +7,6 @@ import streamlit as st
 
 from lib import auth, data, ui
 from lib.metrics import pretty
-from lib.supabase_client import SupabaseError
 
 st.set_page_config(page_title="Alpha HR Dashboard", page_icon=":material/monitoring:", layout="wide")
 ui.inject_css()
@@ -16,8 +15,8 @@ auth.require_sign_in()
 # The first read happens before any page is drawn, so pages never start empty.
 try:
     snapshot = data.get_snapshot(max_age=None)   # reads only if this session has no data yet
-except SupabaseError as err:
-    st.error(f"Couldn't read the live database: {err}")
+except Exception as err:   # only if even the saved outage copy can't be loaded
+    st.error(f"Couldn't load any data: {err}")
     st.stop()
 
 navigation = st.navigation([
@@ -36,8 +35,14 @@ with st.sidebar:
         st.selectbox(label, options, key=f"filter_{column}",
                      format_func=lambda v, all_label=all_label: all_label if v == "" else pretty(v))
     st.divider()
-    st.toggle("Live refresh every 20 s", value=True, key="live_refresh",
-              help="Re-reads the live database every 20 seconds. Turn off to pause.")
+    st.toggle("Live updates", value=True, key="live_refresh",
+              help=f"Checks the database for changes every {data.CHECK_SECONDS} s and re-reads it every "
+                   f"{data.FULL_REFRESH_SECONDS // 60} min, or at once when rows are added or removed. "
+                   "Turn off to pause.")
+    if st.button("Refresh now", width="stretch",
+                 help=f"Re-read the whole database now (at most once every {data.MANUAL_REFRESH_MIN_SECONDS} s)."):
+        data.get_snapshot(force=True)
+        st.rerun()
     if st.button("Sign out", width="stretch"):
         auth.sign_out()
 

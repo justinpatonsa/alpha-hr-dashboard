@@ -28,7 +28,7 @@ from lib import charts, metrics as m, ui
 
 ui.page_header("Title", "The question this page answers")   # drawn once
 
-def render(df, snap):         # df = the filtered, joined employee table; runs every 20 s
+def render(df, snap):         # df = the filtered, joined employee table; runs on every 20 s tick
     ui.kpi_row([...])         # four fixed-height tiles, the first is the hero
     ui.section("Chart title", "subtitle")
     charts.show(charts.style(fig, height), key="unique_key")
@@ -36,7 +36,7 @@ def render(df, snap):         # df = the filtered, joined employee table; runs e
 ui.live(render, key="page_name")
 ```
 
-`ui.live` re-reads the database every 20 seconds and calls `render` again. Only the page body updates, and it updates in place. **To keep the screen from jumping:**
+`ui.live` ticks every 20 seconds and calls `render` again with the latest shared read. `lib/data.py` checks row counts on each tick, and re-reads everything every 5 minutes, or at once when counts change. **Don't make it read more often:** the class database has a small transfer allowance, and a 20-second full re-read once got the project blocked. Only the page body updates, and it updates in place. **To keep the screen from jumping:**
 - Give every chart a fixed height and a unique `key`.
 - Always draw the same elements in the same order.
 - Put messages into fixed slots instead of making them appear only sometimes.

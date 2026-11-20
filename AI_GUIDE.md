@@ -13,7 +13,7 @@ You are helping a student team (DATA 6520, Fairfield University) change a **live
 - A **Streamlit** multipage app (Python), hosted free on **Streamlit Community Cloud** at <https://alpha-hr-dashboard.streamlit.app>.
 - The code is on GitHub at <https://github.com/justinpatonsa/alpha-hr-dashboard>. **Every push to the `main` branch redeploys the live app** within about 1–2 minutes.
 - Viewers sign in with **one shared group username and password**. The app then reads a **live Supabase (Postgres) database** shared by the whole class, through its REST API, and recomputes every figure.
-- Each page's body **re-reads the database every 20 seconds** and redraws **without the layout moving**.
+- Each page's body **updates every 20 seconds** from one shared read and redraws **without the layout moving**. The app checks row counts every 20 s, and re-reads everything every 5 min, or at once when counts change. Never add your own database reads: the class database has a small transfer allowance.
 - `docs/` holds an older static HTML/JS version served by GitHub Pages. Ignore it unless asked.
 
 ### Rules you must follow (never break these)
@@ -111,7 +111,7 @@ from lib import charts, metrics as m, ui
 ui.page_header("My page", "The question this page answers, in plain words?")   # drawn once, outside the refresh
 
 
-def render(df, snap):                       # runs on load and again every 20 seconds
+def render(df, snap):                       # runs on load and again on every 20-second tick
     h = m.headline(df)
     ui.kpi_row([                            # always four tiles; the first is the big "hero" number
         {"label": "Turnover rate", "value": m.pct(h["rate"]), "note": "of baseline employees", "hero": True},

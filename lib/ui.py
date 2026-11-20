@@ -1,5 +1,5 @@
 """Page furniture shared by every page: CSS, header, KPI tiles, section titles, tables and the
-live fragment that refreshes the page body every 20 seconds without moving anything."""
+live fragment that updates the page body (checking the database every 20 seconds) without moving anything."""
 from html import escape
 
 import pandas as pd
@@ -103,12 +103,13 @@ def _status(snap: data.Snapshot, live: bool) -> None:
         return
     if snap.error:
         cls = "live warn"
-        text = (f"Couldn't refresh at {snap.failed_at:%H:%M:%S}. Showing the data read at {t}; "
-                f"trying again in {data.REFRESH_SECONDS} s. ({snap.error})")
+        text = (f"Couldn't reach the database at {snap.failed_at:%H:%M:%S}. Showing the data read at {t}; "
+                f"trying again in {data.CHECK_SECONDS} s. ({snap.error})")
     elif live:
         cls = "live"
-        text = (f"Live · read at {t} · {rows:,} rows from 4 tables in {snap.seconds:.1f} s · "
-                f"refreshes every {data.REFRESH_SECONDS} s")
+        checked = (snap.checked_at or snap.loaded_at).strftime("%H:%M:%S")
+        text = (f"Live · checked {checked} · full read at {t} ({rows:,} rows) · "
+                f"re-reads every {data.FULL_REFRESH_SECONDS // 60} min, or at once when rows change")
     else:
         cls = "live paused"
         text = f"Paused · last read at {t} · turn live refresh back on in the sidebar"
@@ -116,7 +117,8 @@ def _status(snap: data.Snapshot, live: bool) -> None:
 
 
 def live(render, key: str) -> None:
-    """Run render(df, snapshot) in a fragment that re-reads the database every 20 seconds.
+    """Run render(df, snapshot) in a fragment that ticks every 20 seconds. Each tick asks lib/data
+    for the latest shared read, which checks the database cheaply and re-reads it when needed.
 
     Only this fragment reruns, so the header, sidebar and scroll position stay put. Each
     render emits the same elements in the same order, so Streamlit updates them in place."""
